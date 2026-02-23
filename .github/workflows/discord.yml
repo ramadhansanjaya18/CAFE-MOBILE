@@ -1,0 +1,70 @@
+name: Mobile Discord Notification
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - feature/**
+  pull_request:
+    types: [opened, closed]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Mobile Notification
+        run: |
+          REPO="${{ github.repository }}"
+          AUTHOR="${{ github.actor }}"
+          EVENT="${{ github.event_name }}"
+          BRANCH="${{ github.ref_name }}"
+          TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          COLOR=10181046
+          TITLE="📱 Mobile Update"
+          DESCRIPTION="${{ github.event.head_commit.message }}"
+          URL="${{ github.event.head_commit.url }}"
+
+          # Warning jika push langsung ke main
+          if [ "$BRANCH" = "main" ] && [ "$EVENT" = "push" ]; then
+            COLOR=15158332
+            TITLE="🚨 MOBILE PUSH TO MAIN"
+          fi
+
+          # PR dibuka
+          if [ "$EVENT" = "pull_request" ] && [ "${{ github.event.action }}" = "opened" ]; then
+            COLOR=15844367
+            TITLE="🟡 Mobile PR Opened"
+            DESCRIPTION="${{ github.event.pull_request.title }}"
+            URL="${{ github.event.pull_request.html_url }}"
+          fi
+
+          # PR di-merge
+          if [ "$EVENT" = "pull_request" ] && [ "${{ github.event.pull_request.merged }}" = "true" ]; then
+            COLOR=3066993
+            TITLE="🟢 Mobile PR Merged"
+            DESCRIPTION="${{ github.event.pull_request.title }}"
+            URL="${{ github.event.pull_request.html_url }}"
+          fi
+
+          curl -H "Content-Type: application/json" \
+          -X POST \
+          -d "{
+            \"embeds\": [{
+              \"title\": \"${TITLE}\",
+              \"description\": \"**${DESCRIPTION}**\",
+              \"color\": ${COLOR},
+              \"fields\": [
+                {\"name\": \"📦 Repository\", \"value\": \"${REPO}\", \"inline\": true},
+                {\"name\": \"👤 Author\", \"value\": \"${AUTHOR}\", \"inline\": true},
+                {\"name\": \"🌿 Branch\", \"value\": \"${BRANCH}\", \"inline\": true}
+              ],
+              \"url\": \"${URL}\",
+              \"footer\": {
+                \"text\": \"CoffeeJob Dev Team • Mobile Automation\"
+              },
+              \"timestamp\": \"${TIMESTAMP}\"
+            }]
+          }" \
+          ${{ secrets.DISCORD_WEBHOOK }}
